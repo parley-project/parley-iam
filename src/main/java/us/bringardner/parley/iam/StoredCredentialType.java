@@ -34,6 +34,7 @@ import java.util.Objects;
 public final class StoredCredentialType {
 
     public static final StoredCredentialType SCRAM_SHA_256 = new StoredCredentialType("scram-sha-256");
+    public static final StoredCredentialType SCRAM_SHA_1 = new StoredCredentialType("scram-sha-1");
     public static final StoredCredentialType SSH_PUBLIC_KEYS = new StoredCredentialType("ssh-public-keys");
     public static final StoredCredentialType TSIG_SECRET = new StoredCredentialType("tsig-secret");
     public static final StoredCredentialType PLAIN_TEXT = new StoredCredentialType("plain-text");

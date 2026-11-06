@@ -107,6 +107,20 @@ public final class Requester {
                 serverName, allMethods);
     }
 
+    /**
+     * The same requester after the connection started or ended TLS (STARTTLS). Who is logged
+     * in and how stay the same.
+     *
+     * @param secure true when the connection now uses TLS
+     * @return this requester when nothing changed, otherwise a new one
+     */
+    public Requester withSecure(boolean secure) {
+        if (secure == this.secure) {
+            return this;
+        }
+        return new Requester(principal, clientAddress, localPort, secure, transport, serverName, methods);
+    }
+
     /** @return the same connection with nobody logged in (logout, reset) */
     public Requester loggedOut() {
         return new Requester(null, clientAddress, localPort, secure, transport, serverName,
