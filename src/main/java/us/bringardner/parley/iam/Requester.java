@@ -38,6 +38,10 @@ import java.util.Objects;
  * <p>
  * A requester is immutable. Logging in gives a new requester ({@link #loggedIn}), and only
  * a result of {@link AuthenticationResult.Status#AUTHENTICATED} can do that.
+ * <p>
+ * Who a session has logged in is the session's own requester, which only the session's
+ * {@code authenticate} changes (rule 1, "one door for logging in"). A requester made
+ * anywhere else logs no session in.
  */
 public final class Requester {
 
@@ -92,6 +96,11 @@ public final class Requester {
     /**
      * The same connection after a successful login. Each login method used is added to
      * {@link #getMethods()}, so a login in several steps lists every step.
+     * <p>
+     * Only the framework's session calls this, from its {@code authenticate}, with the
+     * result the server gave it; that is the one door for logging in (rule 1). It is public
+     * only because the session is in another module (parley-net). Protocol and application
+     * code never call it: they call the session's {@code authenticate}.
      *
      * @param result the result of a login; must be AUTHENTICATED
      * @return a new requester with the result's principal
