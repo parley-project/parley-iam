@@ -48,9 +48,11 @@ import javax.crypto.spec.PBEKeySpec;
  * in memory. An application can use it as it is, fill it from its own files or database,
  * or extend it.
  * <p>
- * The framework only reads it, through {@link UserRegistry}. The methods that change it
- * ({@link #addPrincipal}, {@link #addMember}, {@link #setPassword}, {@link #grant} and their
- * opposites) are for the application.
+ * The framework only reads it, through {@link UserRegistry}. The methods that change it are
+ * for the application: groups through {@link GroupManager} ({@link #createGroup},
+ * {@link #deleteGroup}, {@link #addMember(ParleyPrincipal, ParleyPrincipal)},
+ * {@link #removeMember(ParleyPrincipal, ParleyPrincipal)}), and {@link #addPrincipal},
+ * {@link #setPassword}, {@link #grant} and their opposites.
  * <ul>
  * <li>Logins: passwords only, stored as PBKDF2 hashes (never the password itself). A group
  * can't log in. An unknown user takes as long to refuse as a known one.</li>
@@ -63,7 +65,7 @@ import javax.crypto.spec.PBEKeySpec;
  * A subclass backed by a file or a database may throw {@link UserRegistryUnavailableException}
  * from the find methods when it can't be reached.
  */
-public class BasicUserRegistry implements UserRegistry {
+public class BasicUserRegistry implements GroupManager {
 
     /** The login method reported for a password login. */
     public static final String PASSWORD_METHOD = "password";
@@ -169,7 +171,9 @@ public class BasicUserRegistry implements UserRegistry {
     }
 
     /**
-     * Puts a member (a principal or another group) in a group.
+     * Puts a member (a principal or another group) in a group, by id. Unlike
+     * {@link #addMember(ParleyPrincipal, ParleyPrincipal)} it doesn't refuse a loop (finding
+     * groups stops at one).
      *
      * @throws IllegalArgumentException when either isn't in this registry or the group isn't a group
      */
@@ -247,6 +251,71 @@ public class BasicUserRegistry implements UserRegistry {
             Set<ParleyPermission> held = grants.get(holderId);
             return held != null && held.remove(permission);
         }
+    }
+
+    // ---- GroupManager, for the application ---------------------------------------------
+
+    /** A group with a new random id. */
+    @Override
+    public ParleyPrincipal createGroup(String name) {
+        if (name == null || name.trim().isEmpty()) {
+            throw new IllegalArgumentException("A group needs a name");
+        }
+        ParleyPrincipal group = BasicParleyPrincipal.group(EntityId.random(), name);
+        addPrincipal(group);
+        return group;
+    }
+
+    @Override
+    public boolean deleteGroup(ParleyPrincipal group) {
+        Objects.requireNonNull(group, "group");
+        synchronized (lock) {
+            ParleyPrincipal stored = principals.get(group.getId());
+            if (stored == null || !stored.isGroup()) {
+                return false;
+            }
+            return removePrincipal(group.getId());
+        }
+    }
+
+    /** Groups nest here, so the member may be a group, as long as that makes no loop. */
+    @Override
+    public boolean addMember(ParleyPrincipal group, ParleyPrincipal member) {
+        Objects.requireNonNull(group, "group");
+        Objects.requireNonNull(member, "member");
+        synchronized (lock) {
+            ParleyPrincipal storedGroup = principals.get(group.getId());
+            if (storedGroup == null || !storedGroup.isGroup()) {
+                throw new IllegalArgumentException("No group " + group.getName() + " in this registry");
+            }
+            if (!principals.containsKey(member.getId())) {
+                throw new IllegalArgumentException("No principal " + member.getName() + " in this registry");
+            }
+            if (group.getId().equals(member.getId())) {
+                throw new IllegalArgumentException("A group can't be a member of itself");
+            }
+            Set<ParleyPrincipal> groupsOfGroup = new LinkedHashSet<ParleyPrincipal>();
+            collectGroups(group.getId(), new HashSet<EntityId>(), groupsOfGroup);
+            for (ParleyPrincipal holder : groupsOfGroup) {
+                if (holder.getId().equals(member.getId())) {
+                    throw new IllegalArgumentException(group.getName() + " is already in " + member.getName()
+                            + ", so " + member.getName() + " can't be in " + group.getName());
+                }
+            }
+            Set<EntityId> groups = directGroups.get(member.getId());
+            if (groups == null) {
+                groups = new LinkedHashSet<EntityId>();
+                directGroups.put(member.getId(), groups);
+            }
+            return groups.add(group.getId());
+        }
+    }
+
+    @Override
+    public boolean removeMember(ParleyPrincipal group, ParleyPrincipal member) {
+        Objects.requireNonNull(group, "group");
+        Objects.requireNonNull(member, "member");
+        return removeMember(group.getId(), member.getId());
     }
 
     // ---- UserRegistry, for the framework ----------------------------------------------
@@ -327,11 +396,35 @@ public class BasicUserRegistry implements UserRegistry {
      * Every group the principal is in, including through other groups (Tony in sales, sales
      * in staff: both). Loops are handled.
      */
+    @Override
     public Set<ParleyPrincipal> findGroups(ParleyPrincipal principal) {
         Set<ParleyPrincipal> found = new LinkedHashSet<ParleyPrincipal>();
+        if (principal == null) {
+            return found;
+        }
         synchronized (lock) {
             Set<EntityId> seen = new HashSet<EntityId>();
             collectGroups(principal.getId(), seen, found);
+        }
+        return found;
+    }
+
+    /** The principals put directly in this group, in no set order. */
+    @Override
+    public Set<ParleyPrincipal> findMembers(ParleyPrincipal group) {
+        Set<ParleyPrincipal> found = new LinkedHashSet<ParleyPrincipal>();
+        if (group == null) {
+            return found;
+        }
+        synchronized (lock) {
+            for (Map.Entry<EntityId, Set<EntityId>> entry : directGroups.entrySet()) {
+                if (entry.getValue().contains(group.getId())) {
+                    ParleyPrincipal member = principals.get(entry.getKey());
+                    if (member != null) {
+                        found.add(member);
+                    }
+                }
+            }
         }
         return found;
     }
