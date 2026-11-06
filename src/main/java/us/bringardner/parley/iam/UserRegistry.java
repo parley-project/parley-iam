@@ -26,6 +26,8 @@ package us.bringardner.parley.iam;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Set;
 
 /**
  * The one place the framework asks about users: who they are, what secrets they have,
@@ -73,6 +75,32 @@ public interface UserRegistry extends Closeable {
 
     /** @return the principal with this id, or null when there is none */
     ParleyPrincipal findPrincipal(EntityId id) throws UserRegistryUnavailableException;
+
+    /**
+     * The groups this principal is in, directly or through other groups (Tony in sales, sales
+     * in staff: both). The registry is the authority for membership: a principal doesn't know
+     * its groups, so code that needs them asks here, and may keep the answer for a session.
+     * The default is for a registry that has no groups.
+     *
+     * @param principal a user or a group of this registry
+     * @return the groups; empty when it is in none or isn't in this registry; never null
+     * @throws UserRegistryUnavailableException when the registry can't answer now
+     */
+    default Set<ParleyPrincipal> findGroups(ParleyPrincipal principal) throws UserRegistryUnavailableException {
+        return Collections.emptySet();
+    }
+
+    /**
+     * The group's direct members: the users and groups put in it, not the members of those
+     * groups. The default is for a registry that has no groups.
+     *
+     * @param group a group of this registry
+     * @return the members; empty when it has none or isn't a group of this registry; never null
+     * @throws UserRegistryUnavailableException when the registry can't answer now
+     */
+    default Set<ParleyPrincipal> findMembers(ParleyPrincipal group) throws UserRegistryUnavailableException {
+        return Collections.emptySet();
+    }
 
     /**
      * May this requester have this permission on this resource (or on the server as a whole

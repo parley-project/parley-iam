@@ -179,4 +179,227 @@ class BasicUserRegistryTest {
         assertEquals(AuthorizationResult.Status.ALLOWED, registry.checkPermission(tonyIn, write, null).getStatus(), "held directly");
         assertEquals(AuthorizationResult.Status.DENIED, registry.checkPermission(connected, read, null).getStatus(), "nobody logged in");
     }
+    @Test
+    void groupsAreManagedThroughPrincipalManager() throws Exception {
+        PrincipalManager groups = registry;
+        ParleyPrincipal support = groups.createGroup("support");
+        assertTrue(support.isGroup());
+        assertSame(support, registry.findPrincipal("Support"));
+        assertEquals(0, registry.findMembers(support).size(), "a new group is empty");
+
+        assertTrue(groups.addMember(support, tony));
+        assertFalse(groups.addMember(support, tony), "already a member");
+        assertTrue(groups.addMember(staff, support), "groups nest");
+        assertEquals(Set.of(support, staff), registry.findGroups(tony), "directly and through support");
+        assertEquals(Set.of(tony), registry.findMembers(support));
+        assertEquals(Set.of(support), registry.findMembers(staff), "direct members only");
+
+        assertTrue(groups.removeMember(support, tony));
+        assertFalse(groups.removeMember(support, tony));
+        assertEquals(0, registry.findGroups(tony).size());
+        assertSame(support, registry.findPrincipal("support"), "an empty group stays");
+
+        assertTrue(groups.deletePrincipal(support));
+        assertFalse(groups.deletePrincipal(support));
+        assertNull(registry.findPrincipal("support"));
+        assertEquals(0, registry.findMembers(staff).size(), "a deleted group is in no group");
+    }
+
+    @Test
+    void groupChangesThatCantWorkAreRefused() throws Exception {
+        final PrincipalManager groups = registry;
+        registry.addMember(staff.getId(), sales.getId());
+        final ParleyPrincipal stranger = BasicParleyPrincipal.group(EntityId.random(), "stranger");
+        assertRefused(new Executable() {
+            @Override
+            public void execute() throws Throwable {
+                groups.createGroup("Tony@Bringardner.us");
+            }
+        }, "the name of a user");
+        assertRefused(new Executable() {
+            @Override
+            public void execute() throws Throwable {
+                groups.createGroup(" ");
+            }
+        }, "no name");
+        assertRefused(new Executable() {
+            @Override
+            public void execute() throws Throwable {
+                groups.addMember(tony, sales);
+            }
+        }, "a user isn't a group");
+        assertRefused(new Executable() {
+            @Override
+            public void execute() throws Throwable {
+                groups.addMember(stranger, tony);
+            }
+        }, "a group of another registry");
+        assertRefused(new Executable() {
+            @Override
+            public void execute() throws Throwable {
+                groups.addMember(sales, stranger);
+            }
+        }, "a member of another registry");
+        assertRefused(new Executable() {
+            @Override
+            public void execute() throws Throwable {
+                groups.addMember(sales, sales);
+            }
+        }, "itself");
+        assertRefused(new Executable() {
+            @Override
+            public void execute() throws Throwable {
+                groups.addMember(sales, staff);
+            }
+        }, "a loop: sales is in staff");
+    }
+
+    @Test
+    void aRegistryWithoutGroupsFindsNone() throws Exception {
+        UserRegistry plain = new UserRegistry() {
+            @Override
+            public boolean supports(Class<? extends Credential> kind, StoredCredentialType stored) {
+                return false;
+            }
+
+            @Override
+            public AuthenticationResult authenticate(Credential credential) {
+                return AuthenticationResult.unsupported("none");
+            }
+
+            @Override
+            public StoredCredential findStoredCredential(String user, StoredCredentialType type) {
+                return null;
+            }
+
+            @Override
+            public ParleyPrincipal findPrincipal(String name) {
+                return null;
+            }
+
+            @Override
+            public ParleyPrincipal findPrincipal(EntityId id) {
+                return null;
+            }
+
+            @Override
+            public AuthorizationResult checkPermission(Requester requester, ParleyPermission needed, ProtectedResource resource) {
+                return AuthorizationResult.denied("none");
+            }
+        };
+        assertEquals(0, plain.findGroups(tony).size());
+        assertEquals(0, plain.findMembers(sales).size());
+        assertFalse(plain instanceof PrincipalManager);
+    }
+
+    @Test
+    void usersAreManagedLikeGroups() throws Exception {
+        PrincipalManager manager = registry;
+        ParleyPrincipal jose = manager.createUser("jose@bringardner.us");
+        assertFalse(jose.isGroup());
+        assertEquals(AuthenticationResult.Status.REFUSED, login("jose@bringardner.us", "pw").getStatus(), "no password yet");
+
+        manager.setPassword(jose, "pw".toCharArray());
+        assertEquals(AuthenticationResult.Status.AUTHENTICATED, login("jose@bringardner.us", "pw").getStatus());
+        assertTrue(manager.removePassword(jose));
+        assertFalse(manager.removePassword(jose));
+        assertEquals(AuthenticationResult.Status.REFUSED, login("jose@bringardner.us", "pw").getStatus());
+
+        ParleyPrincipal changed = manager.setAttribute(jose, "maildrop", "jose");
+        assertEquals("jose", changed.getAttribute("maildrop"));
+        assertEquals("jose", registry.findPrincipal("jose@bringardner.us").getAttribute("maildrop"));
+        assertEquals(jose, changed, "the same principal");
+        ParleyPrincipal salesNow = manager.setAttribute(sales, "mailbox", "sales");
+        assertEquals("sales", salesNow.getAttribute("mailbox"), "groups have attributes too");
+        assertEquals(null, manager.setAttribute(jose, "maildrop", null).getAttribute("maildrop"));
+
+        assertTrue(manager.deletePrincipal(jose));
+        assertNull(registry.findPrincipal("jose@bringardner.us"));
+        assertFalse(manager.deletePrincipal(jose));
+    }
+
+    @Test
+    void aTurnedOffUserIsAsIfGone() throws Exception {
+        PrincipalManager manager = registry;
+        ParleyPermission read = new BasicParleyPermission(StandardPermissions.READ, null);
+        registry.grant(tony.getId(), read);
+        registry.addMember(sales.getId(), tony.getId());
+        Requester tonyIn = connected.loggedIn(AuthenticationResult.authenticated(tony, "password"));
+
+        manager.setEnabled(tony, false);
+        assertFalse(manager.isEnabled(tony));
+        assertTrue(manager.isEnabled(sales), "a group is always on");
+        assertEquals(AuthenticationResult.Status.REFUSED, login("tony@bringardner.us", "secret").getStatus());
+        assertEquals(AuthorizationResult.Status.DENIED, registry.checkPermission(tonyIn, read, null).getStatus(), "even a session from before");
+        assertNull(registry.findPrincipal("tony@bringardner.us"));
+        assertNull(registry.findPrincipal(tony.getId()));
+        assertEquals(0, registry.findMembers(sales).size());
+        assertEquals(0, registry.findGroups(tony).size());
+        assertEquals(java.util.List.of(tony), manager.findPrincipals("tony", PrincipalManager.Kind.USER, 0), "listed, so it can be turned on");
+
+        manager.setEnabled(tony, true);
+        assertEquals(AuthenticationResult.Status.AUTHENTICATED, login("tony@bringardner.us", "secret").getStatus());
+        assertEquals(Set.of(sales), registry.findGroups(tony), "its groups were kept");
+    }
+
+    @Test
+    void principalsAreListedByName() throws Exception {
+        PrincipalManager manager = registry;
+        manager.createUser("Alice@bringardner.us");
+        manager.createGroup("support");
+        assertEquals(5, manager.findPrincipals(null, PrincipalManager.Kind.ANY, 0).size());
+        assertEquals(java.util.List.of("Alice@bringardner.us", "tony@bringardner.us"),
+                names(manager.findPrincipals("", PrincipalManager.Kind.USER, 0)), "sorted, case ignored");
+        assertEquals(java.util.List.of("sales", "staff", "support"), names(manager.findPrincipals(null, PrincipalManager.Kind.GROUP, 0)));
+        assertEquals(java.util.List.of("staff"), names(manager.findPrincipals("ST", PrincipalManager.Kind.ANY, 5)), "prefix, case ignored");
+        assertEquals(java.util.List.of("sales"), names(manager.findPrincipals("s", PrincipalManager.Kind.ANY, 1)), "the limit");
+    }
+
+    @Test
+    void userChangesThatCantWorkAreRefused() throws Exception {
+        final PrincipalManager manager = registry;
+        final ParleyPrincipal stranger = BasicParleyPrincipal.user(EntityId.random(), "stranger");
+        assertRefused(new Executable() {
+            @Override
+            public void execute() throws Throwable {
+                manager.createUser("SALES");
+            }
+        }, "the name of a group");
+        assertRefused(new Executable() {
+            @Override
+            public void execute() throws Throwable {
+                manager.setPassword(sales, "pw".toCharArray());
+            }
+        }, "a group doesn't log in");
+        assertRefused(new Executable() {
+            @Override
+            public void execute() throws Throwable {
+                manager.setPassword(tony, new char[0]);
+            }
+        }, "an empty password");
+        assertRefused(new Executable() {
+            @Override
+            public void execute() throws Throwable {
+                manager.setEnabled(sales, false);
+            }
+        }, "a group isn't turned off");
+        assertRefused(new Executable() {
+            @Override
+            public void execute() throws Throwable {
+                manager.setAttribute(stranger, "maildrop", "x");
+            }
+        }, "a principal of another registry");
+    }
+
+    private static java.util.List<String> names(java.util.List<ParleyPrincipal> principals) {
+        java.util.List<String> ret = new java.util.ArrayList<String>();
+        for (ParleyPrincipal p : principals) {
+            ret.add(p.getName());
+        }
+        return ret;
+    }
+
+    private static void assertRefused(Executable change, String why) {
+        assertThrows(IllegalArgumentException.class, change, why);
+    }
 }
