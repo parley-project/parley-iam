@@ -399,6 +399,72 @@ class BasicUserRegistryTest {
         return ret;
     }
 
+    @Test
+    void grantsAreManagedThroughPermissionManager() throws Exception {
+        PermissionManager manager = registry;
+        final EntityId inbox = EntityId.random();
+        final EntityId other = EntityId.random();
+        ProtectedResource inboxResource = resource(inbox);
+        ProtectedResource otherResource = resource(other);
+        ParleyPermission write = new BasicParleyPermission(StandardPermissions.WRITE, null);
+        ParleyPermission writeInbox = new BasicParleyPermission(StandardPermissions.WRITE, inbox);
+        ParleyPermission read = new BasicParleyPermission(StandardPermissions.READ, null);
+        Requester tonyIn = connected.loggedIn(AuthenticationResult.authenticated(tony, "password"));
+        assertTrue(manager.supportsGrant(true, true));
+        assertTrue(manager.supportsGrant(false, false));
+
+        assertTrue(manager.grant(tony, writeInbox));
+        assertFalse(manager.grant(tony, new BasicParleyPermission("WRITE", inbox)), "names ignore case: the same grant");
+        assertEquals(AuthorizationResult.Status.ALLOWED, registry.checkPermission(tonyIn, write, inboxResource).getStatus(), "about that resource");
+        assertEquals(AuthorizationResult.Status.ALLOWED, registry.checkPermission(tonyIn, writeInbox, null).getStatus(), "the needed permission names it");
+        assertEquals(AuthorizationResult.Status.DENIED, registry.checkPermission(tonyIn, write, otherResource).getStatus(), "another resource");
+        assertEquals(AuthorizationResult.Status.DENIED, registry.checkPermission(tonyIn, write, null).getStatus(), "the whole server");
+
+        assertTrue(manager.grant(sales, read));
+        registry.addMember(sales.getId(), tony.getId());
+        assertEquals(AuthorizationResult.Status.ALLOWED, registry.checkPermission(tonyIn, read, otherResource).getStatus(),
+                "a server-wide grant to a group holds on every resource");
+        assertEquals(Set.of(writeInbox), manager.findGrants(tony), "its own grants, not its groups'");
+        assertEquals(Set.of(read), manager.findGrants(sales));
+
+        assertTrue(manager.revoke(tony, writeInbox));
+        assertFalse(manager.revoke(tony, writeInbox));
+        assertEquals(AuthorizationResult.Status.DENIED, registry.checkPermission(tonyIn, write, inboxResource).getStatus());
+        assertEquals(0, manager.findGrants(tony).size());
+
+        final ParleyPrincipal stranger = BasicParleyPrincipal.user(EntityId.random(), "stranger");
+        assertRefused(new Executable() {
+            @Override
+            public void execute() throws Throwable {
+                registry.grant(stranger, read);
+            }
+        }, "a principal of another registry");
+    }
+
+    private ProtectedResource resource(final EntityId id) {
+        return new ProtectedResource() {
+            @Override
+            public EntityId getId() {
+                return id;
+            }
+
+            @Override
+            public String getType() {
+                return "mailbox";
+            }
+
+            @Override
+            public String getName() {
+                return "INBOX";
+            }
+
+            @Override
+            public EntityId getOwnerId() {
+                return tony.getId();
+            }
+        };
+    }
+
     private static void assertRefused(Executable change, String why) {
         assertThrows(IllegalArgumentException.class, change, why);
     }

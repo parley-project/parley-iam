@@ -50,8 +50,9 @@ import javax.crypto.spec.PBEKeySpec;
  * or extend it.
  * <p>
  * The framework only reads it, through {@link UserRegistry}. The methods that change it are
- * for the application: users and groups through {@link PrincipalManager}, and
- * {@link #addPrincipal}, {@link #grant} and their opposites, which take ids.
+ * for the application: users and groups through {@link PrincipalManager}, grants through
+ * {@link PermissionManager} (to users and groups, about a resource or the whole server), and
+ * {@link #addPrincipal}, {@link #grant(EntityId, ParleyPermission)} and their opposites, which take ids.
  * <ul>
  * <li>Logins: passwords only, stored as PBKDF2 hashes (never the password itself). A group
  * can't log in. An unknown user takes as long to refuse as a known one.</li>
@@ -64,7 +65,7 @@ import javax.crypto.spec.PBEKeySpec;
  * A subclass backed by a file or a database may throw {@link UserRegistryUnavailableException}
  * from the find methods when it can't be reached.
  */
-public class BasicUserRegistry implements PrincipalManager {
+public class BasicUserRegistry implements PrincipalManager, PermissionManager {
 
     /** The login method reported for a password login. */
     public static final String PASSWORD_METHOD = "password";
@@ -415,6 +416,49 @@ public class BasicUserRegistry implements PrincipalManager {
         return removeMember(group.getId(), member.getId());
     }
 
+    // ---- PermissionManager, for the application ----------------------------------------
+
+    /** Every kind: to users and groups, about a resource or the whole server. */
+    @Override
+    public boolean supportsGrant(boolean toGroup, boolean onResource) {
+        return true;
+    }
+
+    @Override
+    public boolean grant(ParleyPrincipal holder, ParleyPermission permission) {
+        Objects.requireNonNull(holder, "holder");
+        Objects.requireNonNull(permission, "permission");
+        synchronized (lock) {
+            stored(holder);
+            Set<ParleyPermission> held = grants.get(holder.getId());
+            if (held == null) {
+                held = new LinkedHashSet<ParleyPermission>();
+                grants.put(holder.getId(), held);
+            }
+            return held.add(permission);
+        }
+    }
+
+    @Override
+    public boolean revoke(ParleyPrincipal holder, ParleyPermission permission) {
+        Objects.requireNonNull(holder, "holder");
+        synchronized (lock) {
+            stored(holder);
+            return revoke(holder.getId(), permission);
+        }
+    }
+
+    /** The holder's own grants; a turned-off user's too. */
+    @Override
+    public Set<ParleyPermission> findGrants(ParleyPrincipal holder) {
+        Objects.requireNonNull(holder, "holder");
+        synchronized (lock) {
+            stored(holder);
+            Set<ParleyPermission> held = grants.get(holder.getId());
+            return held == null ? new LinkedHashSet<ParleyPermission>() : new LinkedHashSet<ParleyPermission>(held);
+        }
+    }
+
     // ---- UserRegistry, for the framework ----------------------------------------------
 
     /** Passwords only. */
@@ -541,6 +585,10 @@ public class BasicUserRegistry implements PrincipalManager {
      * Allowed when the logged-in principal, or a group it is in, holds a permission that
      * covers the one needed ({@link ParleyPermission#implies}). Nobody logged in, and a user
      * turned off since it logged in, hold nothing.
+     * <p>
+     * A check about a resource (the {@code resource} given, or the needed permission's own
+     * resource) is covered by a grant about that resource or by a grant about the whole server:
+     * here a server-wide grant holds everywhere.
      */
     @Override
     public AuthorizationResult checkPermission(Requester requester, ParleyPermission needed,
@@ -554,12 +602,20 @@ public class BasicUserRegistry implements PrincipalManager {
                 return AuthorizationResult.denied(principal.getName() + " is turned off");
             }
         }
+        EntityId about = needed.getResourceId() != null ? needed.getResourceId()
+                : resource == null ? null : resource.getId();
+        ParleyPermission onResource = about == null || about.equals(needed.getResourceId()) ? needed
+                : new BasicParleyPermission(needed.getName(), about);
+        ParleyPermission serverWide = needed.getResourceId() == null ? needed
+                : new BasicParleyPermission(needed.getName(), null);
         List<ParleyPrincipal> holders = new ArrayList<ParleyPrincipal>();
         holders.add(principal);
         holders.addAll(findGroups(principal));
         for (ParleyPrincipal holder : holders) {
             for (ParleyPermission permission : findPermissions(holder)) {
-                if (permission.implies(needed)) {
+                boolean covers = permission.getResourceId() == null ? permission.implies(serverWide)
+                        : permission.implies(onResource);
+                if (covers) {
                     return AuthorizationResult.allowed(holder.getName() + " holds " + permission);
                 }
             }
