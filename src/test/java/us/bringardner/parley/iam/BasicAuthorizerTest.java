@@ -27,6 +27,8 @@ package us.bringardner.parley.iam;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.util.Set;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
@@ -70,19 +72,31 @@ class BasicAuthorizerTest {
     private final ParleyPrincipal sales = BasicParleyPrincipal.group(EntityId.random(), "sales");
     private final ParleyPrincipal staff = BasicParleyPrincipal.group(EntityId.random(), "staff");
 
-    private InMemoryUserRegistry registry;
+    /** A registry whose database is down, to show an outage is not a denial. */
+    static final class DownRegistry extends BasicUserRegistry {
+        DownRegistry() {
+            super(1);
+        }
+
+        @Override
+        public Set<ParleyPrincipal> findGroups(ParleyPrincipal principal) throws UserRegistryUnavailableException {
+            throw new UserRegistryUnavailableException("the test database is down");
+        }
+    }
+
+    private BasicUserRegistry registry;
     private BasicAuthorizer authorizer;
     private TestFile tonysFile;
 
     @BeforeEach
     void setUp() {
-        registry = new InMemoryUserRegistry();
-        registry.add(tony);
-        registry.add(bob);
-        registry.add(sales);
-        registry.add(staff);
-        registry.addMember(sales, bob);   // bob is in sales
-        registry.addMember(staff, sales); // sales is in staff, so bob is in staff too
+        registry = new BasicUserRegistry(1); // 1 hash iteration: these tests check no passwords
+        registry.addPrincipal(tony);
+        registry.addPrincipal(bob);
+        registry.addPrincipal(sales);
+        registry.addPrincipal(staff);
+        registry.addMember(sales.getId(), bob.getId());   // bob is in sales
+        registry.addMember(staff.getId(), sales.getId()); // sales is in staff, so bob is in staff too
         authorizer = new BasicAuthorizer(registry);
         tonysFile = new TestFile("/tony/notes.txt", tony);
     }
@@ -118,26 +132,26 @@ class BasicAuthorizerTest {
 
     @Test
     void grantToTheUserAllows() {
-        registry.grant(bob, read(tonysFile));
+        registry.grant(bob.getId(), read(tonysFile));
         assertEquals(AuthorizationResult.Status.ALLOWED, check(loggedIn(bob), read(tonysFile), tonysFile));
     }
 
     @Test
     void grantToAGroupOfAGroupAllows() {
-        registry.grant(staff, read(tonysFile));
+        registry.grant(staff.getId(), read(tonysFile));
         assertEquals(AuthorizationResult.Status.ALLOWED, check(loggedIn(bob), read(tonysFile), tonysFile));
     }
 
     @Test
     void grantToAnyoneNeedsNoLogin() {
-        registry.grant(BuiltInGroups.ANYONE, read(tonysFile));
+        registry.grant(BuiltInGroups.ANYONE.getId(), read(tonysFile));
         Requester nobody = Requester.connected(null, 21, false, Requester.Transport.TCP, "ftp");
         assertEquals(AuthorizationResult.Status.ALLOWED, check(nobody, read(tonysFile), tonysFile));
     }
 
     @Test
     void grantToAuthenticatedNeedsALogin() {
-        registry.grant(BuiltInGroups.AUTHENTICATED, read(tonysFile));
+        registry.grant(BuiltInGroups.AUTHENTICATED.getId(), read(tonysFile));
         Requester nobody = Requester.connected(null, 21, false, Requester.Transport.TCP, "ftp");
         assertEquals(AuthorizationResult.Status.DENIED, check(nobody, read(tonysFile), tonysFile));
         assertEquals(AuthorizationResult.Status.ALLOWED, check(loggedIn(bob), read(tonysFile), tonysFile));
@@ -145,34 +159,35 @@ class BasicAuthorizerTest {
 
     @Test
     void writeDoesNotImplyRead() {
-        registry.grant(bob, new BasicParleyPermission(StandardPermissions.WRITE, tonysFile.getId()));
+        registry.grant(bob.getId(), new BasicParleyPermission(StandardPermissions.WRITE, tonysFile.getId()));
         assertEquals(AuthorizationResult.Status.DENIED, check(loggedIn(bob), read(tonysFile), tonysFile));
     }
 
     @Test
     void adminImpliesEverythingOnItsResource() {
-        registry.grant(bob, new BasicParleyPermission(StandardPermissions.ADMIN, tonysFile.getId()));
+        registry.grant(bob.getId(), new BasicParleyPermission(StandardPermissions.ADMIN, tonysFile.getId()));
         ParleyPermission send = new BasicParleyPermission("smtp.send", tonysFile.getId());
         assertEquals(AuthorizationResult.Status.ALLOWED, check(loggedIn(bob), send, tonysFile));
     }
 
     @Test
     void namesIgnoreCase() {
-        registry.grant(bob, new BasicParleyPermission("Read", tonysFile.getId()));
+        registry.grant(bob.getId(), new BasicParleyPermission("Read", tonysFile.getId()));
         assertEquals(AuthorizationResult.Status.ALLOWED, check(loggedIn(bob), read(tonysFile), tonysFile));
     }
 
     @Test
     void aGrantOnAnotherResourceDoesNotCount() {
         TestFile other = new TestFile("/tony/other.txt", tony);
-        registry.grant(bob, read(other));
+        registry.grant(bob.getId(), read(other));
         assertEquals(AuthorizationResult.Status.DENIED, check(loggedIn(bob), read(tonysFile), tonysFile));
     }
 
     @Test
     void anOutageIsUnavailableNotDenied() {
-        registry.unavailable = true;
-        assertEquals(AuthorizationResult.Status.UNAVAILABLE, check(loggedIn(bob), read(tonysFile), tonysFile));
+        BasicAuthorizer down = new BasicAuthorizer(new DownRegistry());
+        assertEquals(AuthorizationResult.Status.UNAVAILABLE,
+                down.check(loggedIn(bob), read(tonysFile), tonysFile).getStatus());
     }
 
     @Test

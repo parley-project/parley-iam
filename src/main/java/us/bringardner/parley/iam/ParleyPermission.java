@@ -87,6 +87,27 @@ public abstract class ParleyPermission {
         return Objects.equals(resourceId, needed.getResourceId());
     }
 
+    /**
+     * Two permissions are equal when they are the same class, have the same name (ignoring
+     * case) and are about the same resource. Used to find a grant again, for example to revoke it.
+     */
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+        if (other == null || other.getClass() != getClass()) {
+            return false;
+        }
+        ParleyPermission that = (ParleyPermission) other;
+        return hasName(that.name) && sameResource(that);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name.toLowerCase(Locale.ROOT), resourceId);
+    }
+
     @Override
     public String toString() {
         if (resourceId == null) {

@@ -26,6 +26,7 @@ not wired into any server and the names and shapes may change.
 | `StoredCredential`, `StoredCredentialType`, `ProofVerifier` | A stored secret for a proof, and the protocol's own check of it. |
 | `AuthenticationResult`, `AuthorizationResult` | How a login or a permission check ended. |
 | `UserRegistry` | The application's answer to "who is this, what groups, what permissions". Read-only. |
+| `BasicUserRegistry` | The default registry: principals, groups, PBKDF2 password logins and grants in memory, with methods for the application to change them. Use it as it is, fill it from a file or database, or extend it. |
 | `Authorizer`, `BasicAuthorizer` | Decides a permission check; the basic one asks a `UserRegistry`. Replaceable. |
 
 Not in the sketch yet: the login policy (failure counting, delays, lockout) and the waiting
