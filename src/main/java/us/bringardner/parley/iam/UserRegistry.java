@@ -26,8 +26,6 @@ package us.bringardner.parley.iam;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Set;
 
 /**
  * The one place the framework asks about users: who they are, what secrets they have,
@@ -77,22 +75,21 @@ public interface UserRegistry extends Closeable {
     ParleyPrincipal findPrincipal(EntityId id) throws UserRegistryUnavailableException;
 
     /**
-     * Every group the principal is in, including through other groups (Tony in sales,
-     * sales in staff: both). The registry handles loops. An implementation without nested
-     * groups returns direct groups only. Never includes the built-in groups.
-     */
-    Set<ParleyPrincipal> findGroups(ParleyPrincipal principal) throws UserRegistryUnavailableException;
-
-    /**
-     * The permissions this holder holds on this resource (or on the server as a whole when
-     * the resource is null). The holder is a principal, one of its groups, or a built-in
-     * group. The requester is passed so an implementation can apply conditions of its own
-     * (only over TLS, only from these addresses); the framework applies none.
+     * May this requester have this permission on this resource (or on the server as a whole
+     * when the resource is null)? The registry decides everything behind the answer: which
+     * permissions the principal holds, through groups or otherwise, what they cover, and what
+     * a requester with nobody logged in gets. The framework never compares permissions (rule
+     * 5); it only acts on the answer. The requester carries the facts the framework supplies
+     * (rule 3), so a registry can apply conditions of its own.
      *
-     * @return the permissions held; empty when there are none
+     * @param requester who is asking; {@link Requester#getPrincipal()} is null when nobody is
+     *            logged in
+     * @param needed the permission the command or the application needs
+     * @param resource what it is about, or null for the server as a whole
+     * @return ALLOWED, DENIED, or UNAVAILABLE when the registry can't answer now; never null
      */
-    Collection<ParleyPermission> findPermissions(Requester requester, ParleyPrincipal holder,
-            ProtectedResource resource) throws UserRegistryUnavailableException;
+    AuthorizationResult checkPermission(Requester requester, ParleyPermission needed,
+            ProtectedResource resource);
 
     /** Let go of connections and caches. The default does nothing. */
     @Override

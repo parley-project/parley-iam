@@ -148,9 +148,9 @@ class BasicUserRegistryTest {
     void revokeRemovesAGrant() throws Exception {
         ParleyPermission read = new BasicParleyPermission(StandardPermissions.READ, null);
         registry.grant(tony.getId(), read);
-        assertEquals(1, registry.findPermissions(connected, tony, null).size());
+        assertEquals(1, registry.findPermissions(tony).size());
         assertTrue(registry.revoke(tony.getId(), new BasicParleyPermission("READ", null)));
-        assertEquals(0, registry.findPermissions(connected, tony, null).size());
+        assertEquals(0, registry.findPermissions(tony).size());
     }
 
     @Test
@@ -160,18 +160,23 @@ class BasicUserRegistryTest {
         registry.removePrincipal(sales.getId());
         assertNull(registry.findPrincipal("sales"));
         assertEquals(0, registry.findGroups(tony).size());
-        assertEquals(0, registry.findPermissions(connected, sales, null).size());
+        assertEquals(0, registry.findPermissions(sales).size());
     }
 
     @Test
-    void builtInGroupsCanHoldGrantsButCantBeAdded() throws Exception {
-        registry.grant(BuiltInGroups.ANYONE.getId(), new BasicParleyPermission(StandardPermissions.READ, null));
-        assertEquals(1, registry.findPermissions(connected, BuiltInGroups.ANYONE, null).size());
-        assertThrows(IllegalArgumentException.class, new Executable() {
-            @Override
-            public void execute() {
-                registry.addPrincipal(BuiltInGroups.ANYONE);
-            }
-        });
+    void checkPermissionAnswersForThePrincipalAndItsGroups() throws Exception {
+        ParleyPermission read = new BasicParleyPermission(StandardPermissions.READ, null);
+        ParleyPermission write = new BasicParleyPermission(StandardPermissions.WRITE, null);
+        Requester tonyIn = connected.loggedIn(AuthenticationResult.authenticated(tony, "password"));
+        assertEquals(AuthorizationResult.Status.DENIED, registry.checkPermission(tonyIn, read, null).getStatus());
+
+        registry.addMember(sales.getId(), tony.getId());
+        registry.grant(sales.getId(), read);
+        assertEquals(AuthorizationResult.Status.ALLOWED, registry.checkPermission(tonyIn, read, null).getStatus(), "through a group");
+        assertEquals(AuthorizationResult.Status.DENIED, registry.checkPermission(tonyIn, write, null).getStatus());
+
+        registry.grant(tony.getId(), write);
+        assertEquals(AuthorizationResult.Status.ALLOWED, registry.checkPermission(tonyIn, write, null).getStatus(), "held directly");
+        assertEquals(AuthorizationResult.Status.DENIED, registry.checkPermission(connected, read, null).getStatus(), "nobody logged in");
     }
 }

@@ -34,6 +34,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -98,7 +99,7 @@ public class BasicUserRegistry implements UserRegistry {
     /** Member id to the groups it is directly in. */
     private final Map<EntityId, Set<EntityId>> directGroups = new HashMap<EntityId, Set<EntityId>>();
     private final Map<EntityId, PasswordHash> passwords = new HashMap<EntityId, PasswordHash>();
-    /** Holder id (a principal, a group or a built-in group) to its grants. */
+    /** Holder id (a principal or a group) to its grants. */
     private final Map<EntityId, Set<ParleyPermission>> grants = new HashMap<EntityId, Set<ParleyPermission>>();
 
     /** Made up once, so refusing an unknown user costs the same as checking a known one. */
@@ -125,14 +126,10 @@ public class BasicUserRegistry implements UserRegistry {
     /**
      * Adds a principal or a group.
      *
-     * @throws IllegalArgumentException when the id was used before, the name is taken, or it is
-     *             a built-in group
+     * @throws IllegalArgumentException when the id was used before or the name is taken
      */
     public void addPrincipal(ParleyPrincipal principal) {
         Objects.requireNonNull(principal, "principal");
-        if (BuiltInGroups.isBuiltIn(principal)) {
-            throw new IllegalArgumentException("The built-in groups can't be added");
-        }
         String key = nameKey(principal.getName());
         synchronized (lock) {
             if (usedIds.contains(principal.getId())) {
@@ -227,8 +224,7 @@ public class BasicUserRegistry implements UserRegistry {
     }
 
     /**
-     * Gives a holder a permission. The holder is a principal or group in this registry, or
-     * {@link BuiltInGroups#ANYONE} or {@link BuiltInGroups#AUTHENTICATED}.
+     * Gives a holder a permission. The holder is a principal or group in this registry.
      */
     public void grant(EntityId holderId, ParleyPermission permission) {
         Objects.requireNonNull(permission, "permission");
@@ -327,8 +323,11 @@ public class BasicUserRegistry implements UserRegistry {
         }
     }
 
-    @Override
-    public Set<ParleyPrincipal> findGroups(ParleyPrincipal principal) throws UserRegistryUnavailableException {
+    /**
+     * Every group the principal is in, including through other groups (Tony in sales, sales
+     * in staff: both). Loops are handled.
+     */
+    public Set<ParleyPrincipal> findGroups(ParleyPrincipal principal) {
         Set<ParleyPrincipal> found = new LinkedHashSet<ParleyPrincipal>();
         synchronized (lock) {
             Set<EntityId> seen = new HashSet<EntityId>();
@@ -338,12 +337,32 @@ public class BasicUserRegistry implements UserRegistry {
     }
 
     /**
-     * Every grant the holder has. The {@link Authorizer} decides with {@code implies} which of
-     * them cover what is needed; a large registry would filter by resource here instead.
+     * Allowed when the logged-in principal, or a group it is in, holds a permission that
+     * covers the one needed ({@link ParleyPermission#implies}). Nobody logged in holds
+     * nothing.
      */
     @Override
-    public Collection<ParleyPermission> findPermissions(Requester requester, ParleyPrincipal holder,
-            ProtectedResource resource) throws UserRegistryUnavailableException {
+    public AuthorizationResult checkPermission(Requester requester, ParleyPermission needed,
+            ProtectedResource resource) {
+        ParleyPrincipal principal = requester.getPrincipal();
+        if (principal == null) {
+            return AuthorizationResult.denied("nobody logged in");
+        }
+        List<ParleyPrincipal> holders = new ArrayList<ParleyPrincipal>();
+        holders.add(principal);
+        holders.addAll(findGroups(principal));
+        for (ParleyPrincipal holder : holders) {
+            for (ParleyPermission permission : findPermissions(holder)) {
+                if (permission.implies(needed)) {
+                    return AuthorizationResult.allowed(holder.getName() + " holds " + permission);
+                }
+            }
+        }
+        return AuthorizationResult.denied(principal.getName() + " holds nothing that covers " + needed);
+    }
+
+    /** @return every grant the holder has itself (not through its groups) */
+    public Collection<ParleyPermission> findPermissions(ParleyPrincipal holder) {
         synchronized (lock) {
             Set<ParleyPermission> held = grants.get(holder.getId());
             if (held == null) {
@@ -374,8 +393,7 @@ public class BasicUserRegistry implements UserRegistry {
 
     /** Called holding the lock. */
     private boolean isHolder(EntityId id) {
-        return principals.containsKey(id) || BuiltInGroups.ANYONE.getId().equals(id)
-                || BuiltInGroups.AUTHENTICATED.getId().equals(id);
+        return principals.containsKey(id);
     }
 
     private static String nameKey(String name) {
