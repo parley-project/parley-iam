@@ -73,6 +73,25 @@ public interface UserRegistry extends Closeable {
      */
     ParleyPrincipal findPrincipal(String name) throws UserRegistryUnavailableException;
 
+    /**
+     * Look a user up by any name it goes by: {@link #findPrincipal(String)} with groups left out.
+     * Ask this wherever the name must be a user's, such as a login, a mail recipient or the owner
+     * of a mail store, so a group's name is never taken for a user's. The default asks
+     * {@code findPrincipal} and drops a group; a registry may answer it more directly.
+     *
+     * @return the user, carrying its canonical name, or null when there is none or the name is a
+     *         group's
+     * @throws UserRegistryUnavailableException when the registry can't answer now
+     * @since 2.0.0
+     */
+    default ParleyPrincipal findUser(String name) throws UserRegistryUnavailableException {
+        ParleyPrincipal principal = findPrincipal(name);
+        if (principal == null || principal.isGroup()) {
+            return null;
+        }
+        return principal;
+    }
+
     /** @return the principal with this id, or null when there is none */
     ParleyPrincipal findPrincipal(EntityId id) throws UserRegistryUnavailableException;
 
