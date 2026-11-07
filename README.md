@@ -20,7 +20,7 @@ vocabulary are in sub-packages, one per subject. The main package uses none of i
 | `...iam.credential` | The kinds of credential a client offers: `PasswordCredential`, `TokenCredential`, `CertificateCredential`, `ProofCredential`, `VouchedCredential` |
 | `...iam.permission` | `BasicParleyPermission`, `StandardPermissions` |
 | `...iam.principal` | `BasicParleyPrincipal` |
-| `...iam.registry` | `BasicUserRegistry` |
+| `...iam.registry` | `BasicUserRegistry`, `ForwardingUserRegistry`, `UnavailableUserRegistry` |
 
 ## What's included
 
@@ -32,6 +32,8 @@ vocabulary are in sub-packages, one per subject. The main package uses none of i
 | `PrincipalChanges` | A change set: steps naming principals by name (so a step can name one an earlier step creates), applied with `PrincipalManager.apply(changes)`: every step or none, in one write. A step that can't work fails with an `IllegalArgumentException` naming it, and nothing is changed. Grant steps need a registry that is also a `PermissionManager`. `clear()` wipes the passwords the set holds. The single-step methods stay, each a change of its own. |
 | `BasicUserRegistry` | A registry kept in memory, and a `PrincipalManager` and `PermissionManager`: principals, groups (which may nest), PBKDF2 password logins and grants of every kind (a grant about a resource, or about the whole server, which holds on every resource). It allows a permission when the principal or one of its groups holds one that covers it, and applies a change set under its lock, putting everything back when a step fails. Use it as it is, fill it from a file or database, or extend it. |
 | `Requester` | Who is asking, with the connection's facts (address, local port, TLS, transport, server name, login methods used so far). Only the framework's session logs a requester in. |
+| `ForwardingUserRegistry` | Passes every `UserRegistry` call to another registry; extend it and override only what differs (a registry whose permission checks are down, a logging or caching wrapper, a read-only view). It is only a `UserRegistry`, so the wrapped registry's `PrincipalManager` and `PermissionManager` are hidden. |
+| `UnavailableUserRegistry` | A registry that can't answer (its database is down, say): logins and permission checks are UNAVAILABLE and lookups throw `UserRegistryUnavailableException`, with the reason given, so a client is told to try again later, not that its password is wrong. |
 | `Credential` and its kinds | What a client offers: `PasswordCredential`, `TokenCredential`, `CertificateCredential`, `ProofCredential`, `VouchedCredential`. |
 | `StoredCredential`, `StoredCredentialType`, `ProofVerifier` | A stored secret for a proof (SCRAM, APOP, SSH keys, TSIG), and the protocol's own check of it. |
 | `AuthenticationResult`, `AuthorizationResult` | How a login ended (AUTHENTICATED, REFUSED, UNSUPPORTED, UNAVAILABLE) and how a permission check ended (ALLOWED, DENIED, UNAVAILABLE), each with a reason for the log. |
