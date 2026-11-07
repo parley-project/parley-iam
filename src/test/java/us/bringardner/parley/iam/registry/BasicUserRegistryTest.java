@@ -364,10 +364,36 @@ class BasicUserRegistryTest {
         assertEquals(0, registry.findMembers(sales).size());
         assertEquals(0, registry.findGroups(tony).size());
         assertEquals(java.util.List.of(tony), manager.findPrincipals("tony", PrincipalManager.Kind.USER, 0), "listed, so it can be turned on");
+        assertEquals(Set.of(sales), manager.findDirectGroups(tony), "a management page still sees its groups");
+
+        // changed while it is off: the servers still see none of it
+        manager.addMember(staff, tony);
+        manager.removeMember(sales, tony);
+        assertEquals(Set.of(staff), manager.findDirectGroups(tony));
+        assertEquals(0, registry.findGroups(tony).size());
+        assertEquals(0, registry.findMembers(staff).size());
 
         manager.setEnabled(tony, true);
         assertEquals(AuthenticationResult.Status.AUTHENTICATED, login("tony@bringardner.us", "secret").getStatus());
-        assertEquals(Set.of(sales), registry.findGroups(tony), "its groups were kept");
+        assertEquals(Set.of(staff), registry.findGroups(tony), "the groups changed while it was off count now");
+    }
+
+    @Test
+    void findDirectGroupsLeavesOutTheGroupsOfGroups() throws Exception {
+        PrincipalManager manager = registry;
+        registry.addMember(sales.getId(), tony.getId());
+        registry.addMember(staff.getId(), sales.getId());
+        assertEquals(Set.of(sales), manager.findDirectGroups(tony), "not staff, which it is in through sales");
+        assertEquals(Set.of(sales, staff), registry.findGroups(tony));
+        assertEquals(Set.of(staff), manager.findDirectGroups(sales), "a group's own groups");
+        assertEquals(0, manager.findDirectGroups(staff).size());
+        final ParleyPrincipal stranger = BasicParleyPrincipal.user(EntityId.random(), "stranger");
+        assertThrows(IllegalArgumentException.class, new Executable() {
+            @Override
+            public void execute() throws Throwable {
+                manager.findDirectGroups(stranger);
+            }
+        });
     }
 
     @Test
