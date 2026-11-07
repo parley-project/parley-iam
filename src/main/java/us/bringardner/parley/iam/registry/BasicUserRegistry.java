@@ -597,6 +597,26 @@ public class BasicUserRegistry implements PrincipalManager, PermissionManager {
         }
     }
 
+    /** The groups the principal was put in directly; a turned-off user's too. */
+    @Override
+    public Set<ParleyPrincipal> findDirectGroups(ParleyPrincipal principal) {
+        Objects.requireNonNull(principal, "principal");
+        synchronized (lock) {
+            stored(principal);
+            Set<ParleyPrincipal> found = new LinkedHashSet<ParleyPrincipal>();
+            Set<EntityId> groups = directGroups.get(principal.getId());
+            if (groups != null) {
+                for (EntityId groupId : groups) {
+                    ParleyPrincipal group = principals.get(groupId);
+                    if (group != null) {
+                        found.add(group);
+                    }
+                }
+            }
+            return found;
+        }
+    }
+
     /** The holder's own grants; a turned-off user's too. */
     @Override
     public Set<ParleyPermission> findGrants(ParleyPrincipal holder) {

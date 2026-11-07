@@ -25,6 +25,7 @@
 package us.bringardner.parley.iam;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * A {@link UserRegistry} whose principals an application can manage: users and groups created,
@@ -46,8 +47,10 @@ import java.util.List;
  * A principal is a read-only value, so a method that changes one returns it as it is now.
  * <p>
  * A user who is turned off ({@link #setEnabled}) can't log in, holds no permissions, isn't found
- * by {@link #findPrincipal} and isn't listed by {@link #findMembers}, as if it were gone; only
- * {@link #findPrincipals} lists it, so it can be turned on again.
+ * by {@link #findPrincipal} and isn't listed by {@link #findMembers}, as if it were gone. Only the
+ * reads meant for a management page still show it: {@link #findPrincipals}, so it can be turned on
+ * again, and {@link #findDirectGroups} (with a {@link PermissionManager}'s {@code findGrants}), so
+ * an administrator can see and change what it keeps without turning it on.
  * <p>
  * These methods don't check who is asking. Who may change a principal is the application's
  * decision; it can ask {@link #checkPermission} first.
@@ -188,6 +191,19 @@ public interface PrincipalManager extends UserRegistry {
      * @throws UserRegistryUnavailableException when the store can't be read or changed now
      */
     void setEnabled(ParleyPrincipal user, boolean enabled) throws UserRegistryUnavailableException;
+
+    /**
+     * The groups this user or group was put in directly, not the groups those are in, for a
+     * management page. A turned-off user's groups are listed too, though {@link #findGroups}
+     * gives none while it is off, so its groups can be seen and changed without turning it on.
+     *
+     * @param principal a user or group of this registry
+     * @return its groups; empty when it is in none; never null
+     * @throws IllegalArgumentException when the principal isn't in this registry
+     * @throws UserRegistryUnavailableException when the store can't be read now
+     * @since 2.0.0
+     */
+    Set<ParleyPrincipal> findDirectGroups(ParleyPrincipal principal) throws UserRegistryUnavailableException;
 
     /**
      * @param user a user of this registry
