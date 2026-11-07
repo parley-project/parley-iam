@@ -22,7 +22,9 @@
  *
  *
  */
-package us.bringardner.parley.iam;
+package us.bringardner.parley.iam.permission;
+
+import us.bringardner.parley.iam.ParleyPermission;
 
 /**
  * The permission names every implementation is expected to understand. They are only

@@ -22,13 +22,16 @@
  *
  *
  */
-package us.bringardner.parley.iam;
+package us.bringardner.parley.iam.principal;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
+import us.bringardner.parley.iam.EntityId;
+import us.bringardner.parley.iam.ParleyPrincipal;
 
 /**
  * The general-purpose, read-only {@link ParleyPrincipal}. Its attributes are copied when

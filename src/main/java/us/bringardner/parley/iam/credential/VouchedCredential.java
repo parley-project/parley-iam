@@ -22,25 +22,26 @@
  *
  *
  */
-package us.bringardner.parley.iam;
+package us.bringardner.parley.iam.credential;
 
-import java.security.cert.Certificate;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import us.bringardner.parley.iam.Credential;
+import us.bringardner.parley.iam.Requester;
 
-/** A certificate chain (TLS client certificate, OpenSSH certificate). The certificate names the user. */
-public final class CertificateCredential extends Credential {
+/**
+ * An identity a trusted front end has already checked (a web server's single sign-on, a proxy).
+ * The registry decides whether it trusts the front end that vouched.
+ */
+public final class VouchedCredential extends Credential {
 
-    private final List<Certificate> chain;
+    private final String vouchedBy;
 
-    public CertificateCredential(Certificate[] chain, Requester requester) {
-        super(null, requester);
-        this.chain = Collections.unmodifiableList(Arrays.asList(chain.clone()));
+    public VouchedCredential(String user, String vouchedBy, Requester requester) {
+        super(user, requester);
+        this.vouchedBy = vouchedBy;
     }
 
-    /** @return the chain, the client's own certificate first */
-    public List<Certificate> getChain() {
-        return chain;
+    /** @return the name of the front end that checked the identity */
+    public String getVouchedBy() {
+        return vouchedBy;
     }
 }

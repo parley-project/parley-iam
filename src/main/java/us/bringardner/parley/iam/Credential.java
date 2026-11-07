@@ -26,8 +26,12 @@ package us.bringardner.parley.iam;
 
 /**
  * What a client offers to prove who it is. The framework ships one kind per way of proving:
- * {@link PasswordCredential}, {@link TokenCredential}, {@link CertificateCredential},
- * {@link ProofCredential} and {@link VouchedCredential}.
+ * {@link us.bringardner.parley.iam.credential.PasswordCredential PasswordCredential},
+ * {@link us.bringardner.parley.iam.credential.TokenCredential TokenCredential},
+ * {@link us.bringardner.parley.iam.credential.CertificateCredential CertificateCredential},
+ * {@link us.bringardner.parley.iam.credential.ProofCredential ProofCredential} and
+ * {@link us.bringardner.parley.iam.credential.VouchedCredential VouchedCredential}, in
+ * {@code us.bringardner.parley.iam.credential}.
  */
 public abstract class Credential {
 

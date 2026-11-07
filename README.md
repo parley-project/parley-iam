@@ -8,6 +8,20 @@ parley-net's servers log users in and check permissions with these types.
 - No runtime dependencies
 - Apache License 2.0
 
+## Packages
+
+The main package, `us.bringardner.parley.iam`, is the contract: the interfaces and value classes an
+application programs against and that the servers use. The default implementations and the fixed
+vocabulary are in sub-packages, one per subject. The main package uses none of its sub-packages.
+
+| Package | Holds |
+|---|---|
+| `us.bringardner.parley.iam` | `UserRegistry`, `PrincipalManager`, `PermissionManager`, `PrincipalChanges`, `ParleyPrincipal`, `ParleyPermission`, `Credential`, `StoredCredential`, `StoredCredentialType`, `ProofVerifier`, `Requester`, `AuthenticationResult`, `AuthorizationResult`, `ProtectedResource`, `Entity`, `EntityId`, `UserRegistryUnavailableException` |
+| `...iam.credential` | The kinds of credential a client offers: `PasswordCredential`, `TokenCredential`, `CertificateCredential`, `ProofCredential`, `VouchedCredential` |
+| `...iam.permission` | `BasicParleyPermission`, `StandardPermissions` |
+| `...iam.principal` | `BasicParleyPrincipal` |
+| `...iam.registry` | `BasicUserRegistry` |
+
 ## What's included
 
 | Type | Purpose |

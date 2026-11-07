@@ -22,7 +22,10 @@
  *
  *
  */
-package us.bringardner.parley.iam;
+package us.bringardner.parley.iam.permission;
+
+import us.bringardner.parley.iam.EntityId;
+import us.bringardner.parley.iam.ParleyPermission;
 
 /**
  * The general-purpose {@link ParleyPermission}: covers a needed permission on the same

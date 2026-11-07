@@ -22,7 +22,12 @@
  *
  *
  */
-package us.bringardner.parley.iam;
+package us.bringardner.parley.iam.credential;
+
+import us.bringardner.parley.iam.Credential;
+import us.bringardner.parley.iam.ProofVerifier;
+import us.bringardner.parley.iam.Requester;
+import us.bringardner.parley.iam.StoredCredentialType;
 
 /**
  * A challenge and response: the client proves it knows a secret without sending it.

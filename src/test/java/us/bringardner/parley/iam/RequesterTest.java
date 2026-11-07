@@ -31,6 +31,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
+import us.bringardner.parley.iam.principal.BasicParleyPrincipal;
+
 class RequesterTest {
 
     private final ParleyPrincipal tony = BasicParleyPrincipal.user(EntityId.random(), "tony");

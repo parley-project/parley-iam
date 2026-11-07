@@ -22,7 +22,7 @@
  *
  *
  */
-package us.bringardner.parley.iam;
+package us.bringardner.parley.iam.registry;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -36,6 +36,26 @@ import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
+
+import us.bringardner.parley.iam.AuthenticationResult;
+import us.bringardner.parley.iam.AuthorizationResult;
+import us.bringardner.parley.iam.Credential;
+import us.bringardner.parley.iam.EntityId;
+import us.bringardner.parley.iam.ParleyPermission;
+import us.bringardner.parley.iam.ParleyPrincipal;
+import us.bringardner.parley.iam.PermissionManager;
+import us.bringardner.parley.iam.PrincipalChanges;
+import us.bringardner.parley.iam.PrincipalManager;
+import us.bringardner.parley.iam.ProtectedResource;
+import us.bringardner.parley.iam.Requester;
+import us.bringardner.parley.iam.StoredCredential;
+import us.bringardner.parley.iam.StoredCredentialType;
+import us.bringardner.parley.iam.UserRegistry;
+import us.bringardner.parley.iam.credential.PasswordCredential;
+import us.bringardner.parley.iam.credential.TokenCredential;
+import us.bringardner.parley.iam.permission.BasicParleyPermission;
+import us.bringardner.parley.iam.permission.StandardPermissions;
+import us.bringardner.parley.iam.principal.BasicParleyPrincipal;
 
 class BasicUserRegistryTest {
 

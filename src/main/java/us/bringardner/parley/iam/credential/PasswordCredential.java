@@ -22,20 +22,30 @@
  *
  *
  */
-package us.bringardner.parley.iam;
+package us.bringardner.parley.iam.credential;
 
-/** A bearer token (for example OAuth's, as XOAUTH2 sends it). The token names the user itself. */
-public final class TokenCredential extends Credential {
+import java.util.Arrays;
 
-    private final String token;
+import us.bringardner.parley.iam.Credential;
+import us.bringardner.parley.iam.Requester;
 
-    public TokenCredential(String token, Requester requester) {
-        super(null, requester);
-        this.token = token;
+/** A user name and a password, as SMTP AUTH PLAIN, IMAP LOGIN, FTP PASS or SSH send them. */
+public final class PasswordCredential extends Credential {
+
+    private final char[] password;
+
+    public PasswordCredential(String user, char[] password, Requester requester) {
+        super(user, requester);
+        this.password = password.clone();
     }
 
-    /** @return the token */
-    public String getToken() {
-        return token;
+    /** @return a copy of the password; clear it when done */
+    public char[] getPassword() {
+        return password.clone();
+    }
+
+    /** Overwrites the password held by this credential. */
+    public void clear() {
+        Arrays.fill(password, '\0');
     }
 }
