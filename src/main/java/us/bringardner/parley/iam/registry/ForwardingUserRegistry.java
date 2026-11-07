@@ -95,6 +95,15 @@ public class ForwardingUserRegistry implements UserRegistry {
         return delegate.findPrincipal(name);
     }
 
+    /**
+     * Passed on like the rest, so the wrapped registry's own answer is used. A wrapper that
+     * overrides {@link #findPrincipal(String)} overrides this too.
+     */
+    @Override
+    public ParleyPrincipal findUser(String name) throws UserRegistryUnavailableException {
+        return delegate.findUser(name);
+    }
+
     @Override
     public ParleyPrincipal findPrincipal(EntityId id) throws UserRegistryUnavailableException {
         return delegate.findPrincipal(id);

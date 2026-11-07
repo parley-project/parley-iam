@@ -114,6 +114,14 @@ class BasicUserRegistryTest {
     }
 
     @Test
+    void findUserLeavesGroupsOut() throws Exception {
+        assertSame(tony, registry.findUser("Tony@Bringardner.US"), "any name it goes by");
+        assertSame(sales, registry.findPrincipal("sales"), "findPrincipal finds a group");
+        assertNull(registry.findUser("sales"), "findUser doesn't");
+        assertNull(registry.findUser("nobody"));
+    }
+
+    @Test
     void otherCredentialsAreUnsupported() {
         TokenCredential token = new TokenCredential("abc", connected);
         assertEquals(AuthenticationResult.Status.UNSUPPORTED, registry.authenticate(token).getStatus());

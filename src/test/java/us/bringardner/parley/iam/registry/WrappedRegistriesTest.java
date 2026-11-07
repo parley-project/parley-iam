@@ -26,6 +26,7 @@ package us.bringardner.parley.iam.registry;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -86,6 +87,8 @@ class WrappedRegistriesTest {
         assertEquals(users.supports(PasswordCredential.class, null), wrapped.supports(PasswordCredential.class, null));
         assertSame(users.findPrincipal("tony"), wrapped.findPrincipal("tony"));
         assertSame(users.findPrincipal(tony.getId()), wrapped.findPrincipal(tony.getId()));
+        assertSame(tony, wrapped.findUser("tony"));
+        assertNull(wrapped.findUser("sales"), "a group isn't a user");
         assertEquals(users.findGroups(tony), wrapped.findGroups(tony));
         assertEquals(users.findMembers(sales), wrapped.findMembers(sales));
         assertEquals(AuthorizationResult.Status.ALLOWED,
@@ -137,6 +140,7 @@ class WrappedRegistriesTest {
         UserRegistryUnavailableException e = assertThrows(UserRegistryUnavailableException.class, () -> down.findPrincipal("tony"));
         assertEquals("the database is down", e.getMessage());
         assertThrows(UserRegistryUnavailableException.class, () -> down.findPrincipal(tony.getId()));
+        assertThrows(UserRegistryUnavailableException.class, () -> down.findUser("tony"));
         assertThrows(UserRegistryUnavailableException.class, () -> down.findGroups(tony));
         assertThrows(UserRegistryUnavailableException.class, () -> down.findMembers(sales));
         assertThrows(UserRegistryUnavailableException.class, () -> down.findStoredCredential("tony", StoredCredentialType.PLAIN_TEXT));
