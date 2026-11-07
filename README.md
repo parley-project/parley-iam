@@ -12,8 +12,11 @@ parley-net's servers log users in and check permissions with these types.
 
 | Type | Purpose |
 |---|---|
-| `UserRegistry` | The application's users. It checks the credentials it can check itself, hands out a stored secret for a proof, finds principals by name or id, and answers the permission check (`checkPermission`: ALLOWED, DENIED or UNAVAILABLE). The framework only reads it. |
-| `BasicUserRegistry` | A registry kept in memory: principals, groups (which may nest), PBKDF2 password logins and grants, with methods for the application to change them. It allows a permission when the principal or one of its groups holds one that covers it. Use it as it is, fill it from a file or database, or extend it. |
+| `UserRegistry` | The application's users. It checks the credentials it can check itself, hands out a stored secret for a proof, finds principals by name or id, gives group membership from either end (`findGroups(principal)`, directly or through other groups, and `findMembers(group)`, direct members; the registry is the authority for membership), and answers the permission check (`checkPermission`: ALLOWED, DENIED or UNAVAILABLE). The framework only reads it. |
+| `PrincipalManager` | Optional (an application checks with `instanceof`): create and delete users and groups, set attributes, add and remove members, set or remove a password, turn a user off and on (`setEnabled`; a turned-off user can't log in, holds nothing and isn't found, except by `findPrincipals`), and list by name (`findPrincipals(prefix, kind, limit)`). The methods don't check who is asking: that is the application's decision. |
+| `PermissionManager` | Optional, separate from `PrincipalManager` so an application can keep its users in one place and its grants in another: `grant`, `revoke`, `findGrants` (the holder's own grants, not its groups'), and `supportsGrant(toGroup, onResource)`, so an application offers only what the registry can keep. A registry refuses a grant it can't keep. |
+| `PrincipalChanges` | A change set: steps naming principals by name (so a step can name one an earlier step creates), applied with `PrincipalManager.apply(changes)`: every step or none, in one write. A step that can't work fails with an `IllegalArgumentException` naming it, and nothing is changed. Grant steps need a registry that is also a `PermissionManager`. `clear()` wipes the passwords the set holds. The single-step methods stay, each a change of its own. |
+| `BasicUserRegistry` | A registry kept in memory, and a `PrincipalManager` and `PermissionManager`: principals, groups (which may nest), PBKDF2 password logins and grants of every kind (a grant about a resource, or about the whole server, which holds on every resource). It allows a permission when the principal or one of its groups holds one that covers it, and applies a change set under its lock, putting everything back when a step fails. Use it as it is, fill it from a file or database, or extend it. |
 | `Requester` | Who is asking, with the connection's facts (address, local port, TLS, transport, server name, login methods used so far). Only the framework's session logs a requester in. |
 | `Credential` and its kinds | What a client offers: `PasswordCredential`, `TokenCredential`, `CertificateCredential`, `ProofCredential`, `VouchedCredential`. |
 | `StoredCredential`, `StoredCredentialType`, `ProofVerifier` | A stored secret for a proof (SCRAM, APOP, SSH keys, TSIG), and the protocol's own check of it. |
@@ -42,3 +45,13 @@ parley-net's servers (`Server`, `NioServer`) do the parts that are the same for 
 
 What a permission covers, how groups combine, who owns what and how users are managed are the
 registry's and the application's to decide.
+
+## Registries in other modules
+
+- parley-net's `FileUserRegistry`: a users file. It is a `PrincipalManager` and a `PermissionManager`:
+  groups (`group: <name>` lines for groups with no members, and group attributes), turned-off users
+  (`enabled=false`), grants to users about the whole server, and a change set applied as one rewrite of
+  the file (none when a step fails).
+- parley-net-acl-jdbc's `JdbcUserRegistry`: a database. It is a `PrincipalManager` and a
+  `PermissionManager`: grants to users and groups about the whole server, and a change set applied in one
+  transaction, rolled back when a step fails.
