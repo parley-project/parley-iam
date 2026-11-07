@@ -41,6 +41,8 @@ import java.util.List;
  * <p>
  * A change goes to the registry's own store (memory, a file, a database), so it is seen by
  * every registry that reads that store: at once by this one, by others when they next read it.
+ * Changes that belong together go in one {@link PrincipalChanges}, made all together or not at
+ * all by {@link #apply}; each single-step method is a change set of its own.
  * A principal is a read-only value, so a method that changes one returns it as it is now.
  * <p>
  * A user who is turned off ({@link #setEnabled}) can't log in, holds no permissions, isn't found
@@ -51,6 +53,22 @@ import java.util.List;
  * decision; it can ask {@link #checkPermission} first.
  */
 public interface PrincipalManager extends UserRegistry {
+
+    /**
+     * Make every change in the set, in order, or none of them: either all the steps are made
+     * and stored together, or the registry and its store are as they were. Use it for anything
+     * that must happen together (adding a user with its password, attributes, groups and grants);
+     * the single-step methods below are each a change set of one step.
+     * <p>
+     * A step that can't work (a name already taken, a principal that isn't there, a grant the
+     * registry doesn't keep, a grant step in a registry that isn't a {@link PermissionManager})
+     * fails with {@link IllegalArgumentException}, naming the step, and nothing is changed.
+     *
+     * @param changes the steps
+     * @throws IllegalArgumentException when a step can't work; nothing was changed
+     * @throws UserRegistryUnavailableException when the store can't be read or changed now; nothing was changed
+     */
+    void apply(PrincipalChanges changes) throws UserRegistryUnavailableException;
 
     /** Which principals {@link #findPrincipals} lists. */
     enum Kind {

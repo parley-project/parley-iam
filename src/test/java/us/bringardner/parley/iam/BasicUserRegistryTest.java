@@ -465,6 +465,48 @@ class BasicUserRegistryTest {
         };
     }
 
+    @Test
+    void aChangeSetIsMadeAllTogether() throws Exception {
+        PrincipalChanges changes = new PrincipalChanges()
+                .createUser("jose@bringardner.us")
+                .setPassword("jose@bringardner.us", "pw".toCharArray())
+                .setAttribute("jose@bringardner.us", "maildrop", "jose")
+                .createGroup("support")
+                .addMember("support", "jose@bringardner.us")
+                .addMember("sales", "jose@bringardner.us")
+                .grant("jose@bringardner.us", new BasicParleyPermission(StandardPermissions.READ, null));
+        registry.apply(changes);
+        changes.clear();
+        assertEquals(0, changes.getSteps().get(1).getPassword()[0], "clear wipes the password");
+        ParleyPrincipal jose = registry.findPrincipal("jose@bringardner.us");
+        assertEquals("jose", jose.getAttribute("maildrop"));
+        assertEquals(AuthenticationResult.Status.AUTHENTICATED, login("jose@bringardner.us", "pw").getStatus());
+        assertEquals(2, registry.findGroups(jose).size());
+        assertEquals(1, registry.findGrants(jose).size());
+    }
+
+    @Test
+    void aChangeSetThatFailsChangesNothing() throws Exception {
+        final PrincipalChanges changes = new PrincipalChanges()
+                .createUser("jose@bringardner.us")
+                .setPassword("jose@bringardner.us", "pw".toCharArray())
+                .createGroup("support")
+                .addMember("support", "jose@bringardner.us")
+                .setPassword("tony@bringardner.us", "new".toCharArray())
+                .addMember("nosuchgroup", "jose@bringardner.us");
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, new Executable() {
+            @Override
+            public void execute() throws Throwable {
+                registry.apply(changes);
+            }
+        });
+        assertTrue(e.getMessage().contains("nosuchgroup"), e.getMessage());
+        assertNull(registry.findPrincipal("jose@bringardner.us"), "the user made by an earlier step is gone again");
+        assertNull(registry.findPrincipal("support"));
+        assertEquals(AuthenticationResult.Status.AUTHENTICATED, login("tony@bringardner.us", "secret").getStatus(), "the old password");
+        assertEquals(3, registry.findPrincipals(null, PrincipalManager.Kind.ANY, 0).size());
+    }
+
     private static void assertRefused(Executable change, String why) {
         assertThrows(IllegalArgumentException.class, change, why);
     }

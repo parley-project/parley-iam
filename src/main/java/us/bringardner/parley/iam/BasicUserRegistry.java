@@ -416,6 +416,136 @@ public class BasicUserRegistry implements PrincipalManager, PermissionManager {
         return removeMember(group.getId(), member.getId());
     }
 
+    // ---- PrincipalManager.apply: all the steps or none --------------------------------
+
+    /**
+     * The steps are made one by one while holding the registry's lock, so nobody sees a change
+     * set half made; if one fails, everything is put back as it was before the first.
+     */
+    @Override
+    public void apply(PrincipalChanges changes) {
+        Objects.requireNonNull(changes, "changes");
+        synchronized (lock) {
+            Snapshot before = new Snapshot();
+            try {
+                for (PrincipalChanges.Step step : changes.getSteps()) {
+                    try {
+                        run(step);
+                    } catch (IllegalArgumentException e) {
+                        throw new IllegalArgumentException(step + ": " + e.getMessage(), e);
+                    }
+                }
+            } catch (RuntimeException e) {
+                before.restore();
+                throw e;
+            }
+        }
+    }
+
+    /** Called holding the lock. */
+    private void run(PrincipalChanges.Step step) {
+        switch (step.getAction()) {
+            case CREATE_USER:
+                createUser(step.getName());
+                return;
+            case CREATE_GROUP:
+                createGroup(step.getName());
+                return;
+            default:
+                break;
+        }
+        ParleyPrincipal principal = byName(step.getName());
+        switch (step.getAction()) {
+            case DELETE:
+                if (principal != null) {
+                    deletePrincipal(principal);
+                }
+                return;
+            case ADD_MEMBER:
+            case REMOVE_MEMBER: {
+                ParleyPrincipal member = byName(step.getMember());
+                if (principal == null || member == null) {
+                    throw new IllegalArgumentException("No principal " + (principal == null ? step.getName() : step.getMember()));
+                }
+                if (step.getAction() == PrincipalChanges.Action.ADD_MEMBER) {
+                    addMember(principal, member);
+                } else {
+                    removeMember(principal, member);
+                }
+                return;
+            }
+            default:
+                break;
+        }
+        if (principal == null) {
+            throw new IllegalArgumentException("No principal " + step.getName());
+        }
+        switch (step.getAction()) {
+            case SET_ATTRIBUTE:
+                setAttribute(principal, step.getAttribute(), step.getValue());
+                return;
+            case SET_PASSWORD:
+                setPassword(principal, step.getPassword());
+                return;
+            case REMOVE_PASSWORD:
+                removePassword(principal);
+                return;
+            case SET_ENABLED:
+                setEnabled(principal, step.isEnabled());
+                return;
+            case GRANT:
+                grant(principal, step.getPermission());
+                return;
+            case REVOKE:
+                revoke(principal, step.getPermission());
+                return;
+            default:
+                throw new IllegalArgumentException("Unknown step " + step.getAction());
+        }
+    }
+
+    /** @return the principal with this name, turned off or not, or null; called holding the lock */
+    private ParleyPrincipal byName(String name) {
+        EntityId id = name == null ? null : names.get(nameKey(name));
+        return id == null ? null : principals.get(id);
+    }
+
+    /** Everything the registry holds, copied, so a failed change set can be undone. Made holding the lock. */
+    private final class Snapshot {
+        private final Map<EntityId, ParleyPrincipal> principals0 = new HashMap<EntityId, ParleyPrincipal>(principals);
+        private final Map<String, EntityId> names0 = new HashMap<String, EntityId>(names);
+        private final Set<EntityId> usedIds0 = new HashSet<EntityId>(usedIds);
+        private final Map<EntityId, Set<EntityId>> directGroups0 = copySets(directGroups);
+        private final Map<EntityId, PasswordHash> passwords0 = new HashMap<EntityId, PasswordHash>(passwords);
+        private final Set<EntityId> disabled0 = new HashSet<EntityId>(disabled);
+        private final Map<EntityId, Set<ParleyPermission>> grants0 = copySets(grants);
+
+        void restore() {
+            principals.clear();
+            principals.putAll(principals0);
+            names.clear();
+            names.putAll(names0);
+            usedIds.clear();
+            usedIds.addAll(usedIds0);
+            directGroups.clear();
+            directGroups.putAll(directGroups0);
+            passwords.clear();
+            passwords.putAll(passwords0);
+            disabled.clear();
+            disabled.addAll(disabled0);
+            grants.clear();
+            grants.putAll(grants0);
+        }
+    }
+
+    private static <K, V> Map<K, Set<V>> copySets(Map<K, Set<V>> map) {
+        Map<K, Set<V>> ret = new HashMap<K, Set<V>>();
+        for (Map.Entry<K, Set<V>> e : map.entrySet()) {
+            ret.put(e.getKey(), new LinkedHashSet<V>(e.getValue()));
+        }
+        return ret;
+    }
+
     // ---- PermissionManager, for the application ----------------------------------------
 
     /** Every kind: to users and groups, about a resource or the whole server. */
