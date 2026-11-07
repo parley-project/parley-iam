@@ -41,7 +41,8 @@ import java.util.Objects;
  * <p>
  * Who a session has logged in is the session's own requester, which only the session's
  * {@code authenticate} changes (rule 1, "one door for logging in"). A requester made
- * anywhere else logs no session in.
+ * anywhere else logs no session in: it is only a value, for asking a question such as a
+ * permission check.
  */
 public final class Requester {
 
@@ -97,10 +98,14 @@ public final class Requester {
      * The same connection after a successful login. Each login method used is added to
      * {@link #getMethods()}, so a login in several steps lists every step.
      * <p>
-     * Only the framework's session calls this, from its {@code authenticate}, with the
-     * result the server gave it; that is the one door for logging in (rule 1). It is public
-     * only because the session is in another module (parley-net). Protocol and application
-     * code never call it: they call the session's {@code authenticate}.
+     * This makes a value and logs nothing in. The door for logging a session in (rule 1) is
+     * the session's {@code authenticate}, which is final and calls this with the result the
+     * server gave it; it is public because the session is in another module (parley-net).
+     * <p>
+     * An application may also call it to ask a permission question about a login it checked
+     * itself, outside a session: a web page's login that must hold {@code admin}, or a
+     * registry deciding a login. Protocol code logs a session in with the session's
+     * {@code authenticate}, never with this.
      *
      * @param result the result of a login; must be AUTHENTICATED
      * @return a new requester with the result's principal
