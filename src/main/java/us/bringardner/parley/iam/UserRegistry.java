@@ -125,7 +125,9 @@ public interface UserRegistry extends Closeable {
      * May this requester have this permission on this resource (or on the server as a whole
      * when the resource is null)? The registry decides everything behind the answer: which
      * permissions the principal holds, through groups or otherwise, what they cover, and what
-     * a requester with nobody logged in gets. The framework never compares permissions (rule
+     * a requester with nobody logged in gets. A permission held on the server as a whole holds
+     * on every resource of that server, so a registry that keeps such a grant answers a check
+     * about a resource from it. The framework never compares permissions (rule
      * 5); it only acts on the answer. The requester carries the facts the framework supplies
      * (rule 3), so a registry can apply conditions of its own.
      *
