@@ -125,16 +125,14 @@ public interface UserRegistry extends Closeable {
      * The principals, users and groups, that have an attribute with this value: the users with
      * {@code uid} 1000, the groups with {@code gid} 100. The values are compared as
      * {@link ParleyPrincipal#hasAttribute} compares them. A turned-off user isn't found, as
-     * for {@link #findPrincipal(String)}. A registry that can't answer for an attribute (no way
-     * to search it) says so by throwing, never by answering empty, which would mean nobody has it.
-     * It is the registry's business whether the attribute is unique: the caller takes the
+     * for {@link #findPrincipal(String)}. Every registry answers for every attribute (one with
+     * no index scans what it holds): an empty set means nobody has it. It is the registry's business whether the attribute is unique: the caller takes the
      * principal it needs from the set.
      *
      * @param name the attribute's name
      * @param value the value looked for
      * @return the principals; empty when there are none; never null
      * @throws UserRegistryUnavailableException when the registry can't answer now
-     * @throws UnsupportedOperationException when the registry can't search by this attribute
      * @since 2.0.0
      */
     Set<ParleyPrincipal> findByAttribute(String name, Object value) throws UserRegistryUnavailableException;

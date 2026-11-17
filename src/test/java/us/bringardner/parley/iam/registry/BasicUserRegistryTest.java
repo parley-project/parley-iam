@@ -312,7 +312,7 @@ class BasicUserRegistryTest {
 
             @Override
             public java.util.Set<ParleyPrincipal> findByAttribute(String name, Object value) {
-                throw new UnsupportedOperationException("no search");
+                return java.util.Collections.emptySet();
             }
 
             @Override
