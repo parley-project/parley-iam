@@ -311,6 +311,11 @@ class BasicUserRegistryTest {
             }
 
             @Override
+            public java.util.Set<ParleyPrincipal> findByAttribute(String name, Object value) {
+                throw new UnsupportedOperationException("no search");
+            }
+
+            @Override
             public AuthorizationResult checkPermission(Requester requester, ParleyPermission needed, ProtectedResource resource) {
                 return AuthorizationResult.denied("none");
             }
@@ -318,6 +323,32 @@ class BasicUserRegistryTest {
         assertEquals(0, plain.findGroups(tony).size());
         assertEquals(0, plain.findMembers(sales).size());
         assertFalse(plain instanceof PrincipalManager);
+    }
+
+    @Test
+    void principalsAreFoundByAttribute() throws Exception {
+        PrincipalManager manager = registry;
+        ParleyPrincipal jose = manager.createUser("jose@bringardner.us");
+        ParleyPrincipal ana = manager.createUser("ana@bringardner.us");
+        ParleyPrincipal crew = manager.createGroup("crew@bringardner.us");
+        jose = manager.setAttribute(jose, "uid", "1000");
+        ana = manager.setAttribute(ana, "uid", "1001");
+        crew = manager.setAttribute(crew, "gid", "1000");
+
+        assertEquals(java.util.Collections.singleton(jose), registry.findByAttribute("uid", "1000"));
+        assertEquals(java.util.Collections.singleton(jose), registry.findByAttribute("uid", 1000L), "a number reads as its text");
+        assertEquals(java.util.Collections.singleton(crew), registry.findByAttribute("gid", 1000), "groups are found too");
+        assertEquals(0, registry.findByAttribute("uid", "2000").size());
+        assertEquals(0, registry.findByAttribute("uid", "01000").size(), "not compared as numbers");
+        assertEquals(0, registry.findByAttribute("uid", null).size());
+        assertEquals(0, registry.findByAttribute("nothing", "1000").size());
+
+        manager.setEnabled(jose, false);
+        assertEquals(0, registry.findByAttribute("uid", "1000").size(), "a turned-off user is as if gone");
+        manager.setEnabled(jose, true);
+        manager.setAttribute(jose, "uid", null);
+        assertEquals(0, registry.findByAttribute("uid", "1000").size(), "an attribute taken away");
+        assertEquals(java.util.Collections.singleton(ana), registry.findByAttribute("uid", "1001"));
     }
 
     @Test

@@ -91,6 +91,9 @@ class WrappedRegistriesTest {
         assertNull(wrapped.findUser("sales"), "a group isn't a user");
         assertEquals(users.findGroups(tony), wrapped.findGroups(tony));
         assertEquals(users.findMembers(sales), wrapped.findMembers(sales));
+        users.setAttribute(tony, "uid", "1000");
+        assertEquals(1, wrapped.findByAttribute("uid", 1000).size());
+        assertEquals(users.findByAttribute("uid", "1000"), wrapped.findByAttribute("uid", "1000"));
         assertEquals(AuthorizationResult.Status.ALLOWED,
                 wrapped.checkPermission(connected.loggedIn(in), read, null).getStatus());
     }
@@ -142,6 +145,7 @@ class WrappedRegistriesTest {
         assertThrows(UserRegistryUnavailableException.class, () -> down.findPrincipal(tony.getId()));
         assertThrows(UserRegistryUnavailableException.class, () -> down.findUser("tony"));
         assertThrows(UserRegistryUnavailableException.class, () -> down.findGroups(tony));
+        assertThrows(UserRegistryUnavailableException.class, () -> down.findByAttribute("uid", "1000"));
         assertThrows(UserRegistryUnavailableException.class, () -> down.findMembers(sales));
         assertThrows(UserRegistryUnavailableException.class, () -> down.findStoredCredential("tony", StoredCredentialType.PLAIN_TEXT));
         assertEquals(AuthorizationResult.Status.UNAVAILABLE, down.checkPermission(connected, read, null).getStatus());

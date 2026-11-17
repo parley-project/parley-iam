@@ -110,6 +110,11 @@ public class ForwardingUserRegistry implements UserRegistry {
     }
 
     @Override
+    public Set<ParleyPrincipal> findByAttribute(String name, Object value) throws UserRegistryUnavailableException {
+        return delegate.findByAttribute(name, value);
+    }
+
+    @Override
     public Set<ParleyPrincipal> findGroups(ParleyPrincipal principal) throws UserRegistryUnavailableException {
         return delegate.findGroups(principal);
     }

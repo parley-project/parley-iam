@@ -710,6 +710,20 @@ public class BasicUserRegistry implements PrincipalManager, PermissionManager {
         }
     }
 
+    /** Users and groups, turned-off users left out, in no set order. */
+    @Override
+    public Set<ParleyPrincipal> findByAttribute(String name, Object value) {
+        Set<ParleyPrincipal> found = new LinkedHashSet<ParleyPrincipal>();
+        synchronized (lock) {
+            for (ParleyPrincipal p : principals.values()) {
+                if (p.hasAttribute(name, value) && !disabled.contains(p.getId())) {
+                    found.add(p);
+                }
+            }
+        }
+        return found;
+    }
+
     /**
      * Every group the principal is in, including through other groups (Tony in sales, sales
      * in staff: both). Loops are handled.

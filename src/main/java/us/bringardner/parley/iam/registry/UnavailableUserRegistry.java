@@ -90,6 +90,11 @@ public class UnavailableUserRegistry implements UserRegistry {
     }
 
     @Override
+    public Set<ParleyPrincipal> findByAttribute(String name, Object value) throws UserRegistryUnavailableException {
+        throw new UserRegistryUnavailableException(reason);
+    }
+
+    @Override
     public Set<ParleyPrincipal> findGroups(ParleyPrincipal principal) throws UserRegistryUnavailableException {
         throw new UserRegistryUnavailableException(reason);
     }

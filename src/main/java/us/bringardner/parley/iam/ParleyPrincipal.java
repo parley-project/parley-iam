@@ -60,4 +60,22 @@ public interface ParleyPrincipal extends Principal, Entity {
 
     /** @return the names of the attributes this principal has; empty when it has none */
     Set<String> getAttributeNames();
+
+    /**
+     * Does this principal have this attribute with this value? The values are the same when they
+     * are equal or when they read the same as text, because a registry that keeps its attributes
+     * as text (a file, a database column) gives {@code "1000"} where a caller asks about
+     * {@code 1000L}. Case counts, and {@code "01000"} is not {@code "1000"}.
+     *
+     * @param name the attribute's name
+     * @param value the value looked for; null matches nothing
+     * @return true when the attribute is there and has that value
+     */
+    default boolean hasAttribute(String name, Object value) {
+        if (name == null || value == null) {
+            return false;
+        }
+        Object mine = getAttribute(name);
+        return mine != null && (mine.equals(value) || mine.toString().equals(value.toString()));
+    }
 }
